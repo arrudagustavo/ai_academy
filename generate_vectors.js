@@ -1,27 +1,37 @@
+// 👇 LISTE AQUI OS ARQUIVOS QUE ESTÃO EM /docs
+const MANUAL_FILE_LIST = [
+    "Resumo - Cuponeria.docx",
+    "WS - CWS - DOC - APIS.pdf"
+    // adicione aqui todos os nomes
+];
+
 async function generate() {
     const output = document.getElementById("output");
-    output.textContent = "Lendo arquivos da pasta /docs...\n";
+    output.textContent = "Gerando vetores...\n\n";
 
-    // Lista manual de arquivos por segurança
-    const files = await fetch("docs/")
-        .then(res => res.text())
-        .then(html => {
-            const matches = [...html.matchAll(/href="([^"]+)"/g)];
-            return matches
-                .map(m => m[1])
-                .filter(name => !name.startsWith("?") && name !== "../");
-        });
+    if (MANUAL_FILE_LIST.length === 0) {
+        output.textContent = "❌ Erro: A lista MANUAL_FILE_LIST está vazia.\n";
+        return;
+    }
 
-    output.textContent += "Arquivos encontrados:\n" + files.join("\n") + "\n\n";
+    output.textContent += "Arquivos configurados:\n";
+    output.textContent += MANUAL_FILE_LIST.join("\n") + "\n\n";
 
     const vectors = [];
 
-    for (const file of files) {
+    for (const file of MANUAL_FILE_LIST) {
         const url = "docs/" + file;
 
-        output.textContent += `Lendo ${file}...\n`;
+        output.textContent += `Lendo: ${file} ...\n`;
 
-        const text = await fetch(url).then(r => r.text());
+        let text = "";
+
+        try {
+            text = await fetch(url).then(r => r.text());
+        } catch (err) {
+            output.textContent += `❌ Erro ao ler ${file}\n`;
+            continue;
+        }
 
         vectors.push({
             filename: file,
@@ -29,9 +39,9 @@ async function generate() {
         });
     }
 
-    output.textContent += "\nGerando arquivo vectorstore.json...\n";
+    output.textContent += "\n✔ Vetores gerados! Baixando vectorstore.json...\n";
 
-    // Baixar o arquivo gerado
+    // Download automático do arquivo
     const json = JSON.stringify(vectors, null, 2);
     const blob = new Blob([json], { type: "application/json" });
     const link = document.createElement("a");
@@ -40,5 +50,5 @@ async function generate() {
     link.download = "vectorstore.json";
     link.click();
 
-    output.textContent += "Pronto! Baixe o arquivo e faça upload manualmente para o repositório.\n";
+    output.textContent += "\nAgora faça upload do vectorstore.json para a raiz do repositório.\n";
 }
