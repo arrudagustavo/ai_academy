@@ -2,8 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <!-- CRUCIAL PARA MOBILE: Garante que a largura da tela seja usada corretamente -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- CRUCIAL PARA MOBILE: Garante que a largura da tela seja usada corretamente --><meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CWS Platform - Chat AI</title>
   
 <!-- Tailwind CSS CDN for modern styling --><script src="https://cdn.tailwindcss.com"></script>
@@ -86,6 +85,24 @@
       opacity: 0;
       transition: opacity 0.3s ease-in-out;
     }
+
+    /* Esconder o texto "Enviar" no botão para mobile */
+    .send-text {
+        display: none;
+    }
+    .send-icon {
+        display: block; /* Mostrar o ícone no mobile */
+    }
+
+    /* Mostrar o texto "Enviar" e esconder o ícone para desktop */
+    @media (min-width: 640px) { /* Tailwind's 'sm' breakpoint */
+        .send-text {
+            display: block;
+        }
+        .send-icon {
+            display: none;
+        }
+    }
   </style>
   <script>
     tailwind.config = {
@@ -111,18 +128,15 @@
 
   <!-- Cabeçalho com Título e Logo (AI Chat - Academy, Logo Canto Direito) --><header class="bg-cws-bg p-4 flex items-center justify-between shadow-lg border-b border-cws-secondary px-6">
     <span class="text-cws-text text-xl font-bold">AI Chat - Academy</span>
-    <!-- Logo da CWS Platform (URL Corrigida) -->
-    <img src="https://v.fastcdn.co/t/869bbf5c/a82c00e0/1760449425-64878728-159x52-logo-platform-cinza-.png" alt="CWS Platform Logo" class="h-8 sm:h-10 w-auto" />
+    <!-- Logo da CWS Platform (URL Corrigida) --><img src="https://v.fastcdn.co/t/869bbf5c/a82c00e0/1760449425-64878728-159x52-logo-platform-cinza-.png" alt="CWS Platform Logo" class="h-8 sm:h-10 w-auto" />
   </header>
 
   <!-- Área de Mensagens --><div id="chat" class="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4">
-    <!-- Mensagem de boas-vindas inicial -->
-    <div class="msg-container mr-auto">
+    <!-- Mensagem de boas-vindas inicial --><div class="msg-container mr-auto">
         <div class="msg bot p-3 rounded-xl leading-snug text-sm md:text-base shadow-md bg-cws-secondary text-cws-text rounded-bl-none max-w-full">
             <span class="msg-content">Olá! Eu sou o seu assistente de IA da CWS Platform, pronto para responder às suas perguntas. Como posso ajudar você hoje?</span>
             <button onclick="copyMessage(this)" class="copy-btn absolute top-1 right-1 p-1 rounded-full text-cws-text/50 hover:text-cws-text transition duration-150">
-              <!-- Ícone Copiar (2 Quadrados) -->
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              <!-- Ícone Copiar (2 Quadrados) --><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
             </button>
         </div>
     </div>
@@ -137,19 +151,16 @@
     </div>
   </div>
 
-  <!-- Notificação de Cópia -->
-  <div id="copy-notification" style="opacity: 0;">Texto copiado!</div>
+  <!-- Notificação de Cópia --><div id="copy-notification" style="opacity: 0;">Texto copiado!</div>
 
   <!-- Área de Input (incluindo o botão de microfone) --><div id="input-area" class="flex p-4 bg-cws-bg border-t border-cws-secondary shadow-xl items-center">
     
-    <!-- Botão Microfone -->
-    <button
+    <!-- Botão Microfone --><button
       onclick="toggleSpeechRecognition()"
       id="speech-button"
-      class="p-3 mr-3 rounded-full text-cws-text transition duration-150 hover:bg-cws-accent/30 focus:outline-none"
+      class="p-2 sm:p-3 mr-2 sm:mr-3 rounded-full text-cws-text transition duration-150 hover:bg-cws-accent/30 focus:outline-none"
     >
-      <!-- Ícone SVG de Microfone (Lucide) -->
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mic">
+      <!-- Ícone SVG de Microfone (Lucide) --><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mic sm:w-6 sm:h-6">
         <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
         <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
         <line x1="12" x2="12" y1="19" y2="22"/>
@@ -165,9 +176,10 @@
     <button
       onclick="send()"
       id="send-button"
-      class="ml-3 px-5 py-3 text-base font-semibold border-none bg-cws-accent text-white rounded-lg cursor-pointer transition duration-150 hover:bg-purple-700 active:bg-purple-800 shadow-md"
+      class="ml-2 sm:ml-3 px-3 sm:px-5 py-2 sm:py-3 text-base font-semibold border-none bg-cws-accent text-white rounded-lg cursor-pointer transition duration-150 hover:bg-purple-700 active:bg-purple-800 shadow-md flex items-center justify-center"
     >
-      Enviar
+      <span class="send-text">Enviar</span>
+      <!-- Ícone de avião de papel (WhatsApp/Enviar) para mobile --><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send send-icon sm:w-6 sm:h-6"><path d="m22 2-7 20-4-9-9-4 20-7Z"/><path d="M15 7l-6 6"/></svg>
     </button>
   </div>
 
