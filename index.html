@@ -1,1 +1,22 @@
 
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Academy</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <h1>AI Academy</h1>
+    <p>Faça perguntas com base nos documentos carregados.</p>
+
+    <textarea id="userInput" placeholder="Digite sua pergunta..."></textarea>
+    <button onclick="ask()">Enviar</button>
+
+    <div id="response" class="response"></div>
+  </div>
+
+  <script src="model.js"></script>
+</body>
+</html>
