@@ -1,426 +1,246 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <!-- CRUCIAL PARA MOBILE: Garante que a largura da tela seja usada corretamente --><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CWS Platform - Chat AI</title>
-  
-<!-- Tailwind CSS CDN for modern styling --><script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    /* Configuração da fonte e correção de altura para mobile */
-    body {
-      font-family: 'Inter', sans-serif;
-      height: 100vh;
-      /* Previne o ajuste de layout em dispositivos móveis (iOS) */
-      height: -webkit-fill-available;
-    }
-    html {
-      height: -webkit-fill-available;
-    }
-    /* Estilo para garantir o alinhamento da área de chat */
-    #chat {
-      display: flex;
-      flex-direction: column;
-      overflow-y: auto;
-    }
-    /* Classe para mensagens que precisam de pre-wrap */
-    .msg-content {
-      white-space: pre-wrap;
-    }
-    /* Container da Mensagem para posicionar o botão de cópia */
-    .msg-container {
-      position: relative;
-      /* Ajuste max-width para telas pequenas para dar um pouco mais de espaço */
-      max-width: 90%; 
-      margin-bottom: 15px;
-    }
-
-    /* Estilo para o loader (opcional, mas bom para UX) */
-    .loader {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      /* Cor de destaque do logo */
-      background: #8b459d; 
-      animation: typing 1s infinite alternate;
-      margin: 0 4px;
-    }
-    .loader:nth-child(2) {
-      animation-delay: 0.2s;
-    }
-    .loader:nth-child(3) {
-      animation-delay: 0.4s;
-    }
-    @keyframes typing {
-      from { transform: translateY(0); opacity: 0.7; }
-      to { transform: translateY(-4px); opacity: 1; }
-    }
-    
-    /* Animação para o botão de gravação piscando */
-    @keyframes pulse-cws {
-      0% { opacity: 1; }
-      50% { opacity: 0.3; }
-      100% { opacity: 1; }
-    }
-    /* Classe aplicada quando a gravação está ATIVA */
-    #speech-button.recording {
-        animation: pulse-cws 1.5s infinite ease-in-out;
-    }
-
-    /* Esconde o microfone se o navegador não suportar a API de fala */
-    #speech-button.unsupported {
-        display: none;
-    }
-
-    /* Notificação de Cópia */
-    #copy-notification {
-      position: fixed;
-      bottom: 100px;
-      right: 20px;
-      padding: 10px 20px;
-      background-color: #8b459d;
-      color: white;
-      border-radius: 8px;
-      z-index: 1000;
-      opacity: 0;
-      transition: opacity 0.3s ease-in-out;
-    }
-
-    /* Esconder o texto "Enviar" no botão para mobile */
-    .send-text {
-        display: none;
-    }
-    .send-icon {
-        display: block; /* Mostrar o ícone no mobile */
-    }
-
-    /* Mostrar o texto "Enviar" e esconder o ícone para desktop */
-    @media (min-width: 640px) { /* Tailwind's 'sm' breakpoint */
-        .send-text {
-            display: block;
-        }
-        .send-icon {
-            display: none;
-        }
-    }
-  </style>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            // Nova Paleta de Cores baseada no logo e fundo
-            'cws-bg': '#141416',        // Fundo principal
-            'cws-text': '#f0f0f0',      // Texto principal (quase branco)
-            'cws-accent': '#8b459d',    // Roxo do logo para destaque (botões, user messages)
-            'cws-secondary': '#424242', // Cinza escuro para balões do bot e bordas
-            'cws-input-border': '#555555', // Borda do input em cinza médio
-          },
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-          }
-        }
-      }
-    }
-  </script>
-</head>
-<body class="h-screen flex flex-col bg-cws-bg antialiased text-cws-text">
-
-  <!-- Cabeçalho com Título e Logo (AI Chat - Academy, Logo Canto Direito) --><header class="bg-cws-bg p-4 flex items-center justify-between shadow-lg border-b border-cws-secondary px-6">
-    <span class="text-cws-text text-xl font-bold">AI Chat - Academy</span>
-    <!-- Logo da CWS Platform (URL Corrigida) --><img src="https://v.fastcdn.co/t/869bbf5c/a82c00e0/1760449425-64878728-159x52-logo-platform-cinza-.png" alt="CWS Platform Logo" class="h-8 sm:h-10 w-auto" />
-  </header>
-
-  <!-- Área de Mensagens --><div id="chat" class="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4">
-    <!-- Mensagem de boas-vindas inicial --><div class="msg-container mr-auto">
-        <div class="msg bot p-3 rounded-xl leading-snug text-sm md:text-base shadow-md bg-cws-secondary text-cws-text rounded-bl-none max-w-full">
-            <span class="msg-content">Olá! Eu sou o seu assistente de IA da CWS Platform, pronto para responder às suas perguntas. Como posso ajudar você hoje?</span>
-            <button onclick="copyMessage(this)" class="copy-btn absolute top-1 right-1 p-1 rounded-full text-cws-text/50 hover:text-cws-text transition duration-150">
-              <!-- Ícone Copiar (2 Quadrados) --><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-            </button>
-        </div>
-    </div>
-  </div>
-
-  <!-- Loading Indicator (Typing...) --><div id="typing" class="p-3 pl-6 text-sm text-cws-text hidden flex items-center">
-    <span class="mr-2">CWS AI está digitando</span>
-    <div class="flex items-center">
-      <div class="loader"></div>
-      <div class="loader"></div>
-      <div class="loader"></div>
-    </div>
-  </div>
-
-  <!-- Notificação de Cópia --><div id="copy-notification" style="opacity: 0;">Texto copiado!</div>
-
-  <!-- Área de Input (incluindo o botão de microfone) --><div id="input-area" class="flex p-4 bg-cws-bg border-t border-cws-secondary shadow-xl items-center">
-    
-    <!-- Botão Microfone --><button
-      onclick="toggleSpeechRecognition()"
-      id="speech-button"
-      class="p-2 sm:p-3 mr-2 sm:mr-3 rounded-full text-cws-text transition duration-150 hover:bg-cws-accent/30 focus:outline-none"
-    >
-      <!-- Ícone SVG de Microfone (Lucide) --><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mic sm:w-6 sm:h-6">
-        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-        <line x1="12" x2="12" y1="19" y2="22"/>
-      </svg>
-    </button>
-    
-    <input
-      id="question"
-      placeholder="Digite sua mensagem ou clique no microfone..."
-      class="flex-1 p-3 text-base border border-cws-input-border rounded-lg focus:outline-none focus:ring-2 focus:ring-cws-accent bg-cws-secondary text-cws-text placeholder-gray-400 transition duration-150"
-      onkeydown="if(event.key === 'Enter') send()"
-    />
-    <button
-      onclick="send()"
-      id="send-button"
-      class="ml-2 sm:ml-3 px-3 sm:px-5 py-2 sm:py-3 text-base font-semibold border-none bg-cws-accent text-white rounded-lg cursor-pointer transition duration-150 hover:bg-purple-700 active:bg-purple-800 shadow-md flex items-center justify-center"
-    >
-      <span class="send-text">Enviar</span>
-      <!-- Ícone de avião de papel (WhatsApp/Enviar) para mobile --><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send send-icon sm:w-6 sm:h-6"><path d="m22 2-7 20-4-9-9-4 20-7Z"/><path d="M15 7l-6 6"/></svg>
-    </button>
-  </div>
-
 <script>
-  // --- Configuração da API Gemini ---
-  const MODEL_NAME = "gemini-2.5-flash-preview-09-2025";
-  const API_KEY = "";
-  const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
+    // --- Configuração da API do Worker ---
+    // ⚠️ SUBSTITUA ESTE VALOR PELA URL REAL DO SEU WORKER NA CLOUDFLARE ⚠️
+    const WORKER_URL = "https://ai-academy.gustavo-arruda.workers.dev"; // Ex: https://ai-academy.arrudagustavo.workers.dev
+    const API_URL = WORKER_URL; // O endpoint é o Worker
 
-  // --- Web Speech API Variáveis ---
-  let recognition = null;
-  let isListening = false;
-  const speechButton = document.getElementById("speech-button");
+    // --- Web Speech API Variáveis ---
+    let recognition = null;
+    let isListening = false;
+    const speechButton = document.getElementById("speech-button");
 
-  if ('webkitSpeechRecognition' in window) {
-      recognition = new webkitSpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = 'pt-BR';
+    if ('webkitSpeechRecognition' in window) {
+        recognition = new webkitSpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'pt-BR';
 
-      recognition.onstart = function() {
-          isListening = true;
-          speechButton.classList.add('bg-cws-accent', 'recording', 'text-white');
-          speechButton.classList.remove('text-cws-text');
-      };
-
-      recognition.onresult = function(event) {
-          const transcript = event.results[0][0].transcript;
-          document.getElementById("question").value = transcript;
-      };
-
-      recognition.onend = function() {
-          isListening = false;
-          speechButton.classList.remove('bg-cws-accent', 'recording', 'text-white');
-          speechButton.classList.add('text-cws-text');
-      };
-
-      recognition.onerror = function(event) {
-          isListening = false;
-          speechButton.classList.remove('bg-cws-accent', 'recording', 'text-white');
-          speechButton.classList.add('text-cws-text');
-          console.error('Erro de reconhecimento de voz:', event.error);
-          if (event.error !== 'no-speech' && event.error !== 'aborted') {
-            document.getElementById("question").placeholder = "Erro no microfone. Tente digitar.";
-            setTimeout(() => {
-                document.getElementById("question").placeholder = "Digite sua mensagem ou clique no microfone...";
-            }, 3000);
-          }
-      };
-  } else {
-      speechButton.classList.add('unsupported');
-  }
-
-  function toggleSpeechRecognition() {
-      if (!recognition) return;
-
-      if (isListening) {
-          recognition.stop();
-      } else {
-          document.getElementById("question").value = "";
-          recognition.start();
-          // onstart lida com a mudança de estado e classe
-      }
-  }
-
-  // Função para adicionar mensagem ao chat
-  function addMessage(text, type) {
-    const chat = document.getElementById("chat");
-    
-    // Contêiner principal para a mensagem (necessário para o posicionamento do botão de cópia)
-    const container = document.createElement("div");
-    container.className = `msg-container ${type === 'user' ? 'ml-auto' : 'mr-auto'}`;
-
-    // Balão da Mensagem
-    const div = document.createElement("div");
-    let baseClasses = "p-3 rounded-xl leading-snug text-sm md:text-base shadow-md relative";
-    
-    if (type === "user") {
-      div.className = `msg user ${baseClasses} bg-cws-accent text-white rounded-br-none`;
-    } else {
-      div.className = `msg bot ${baseClasses} bg-cws-secondary text-cws-text rounded-bl-none`;
-    }
-    
-    // Conteúdo da Mensagem (para pre-wrap)
-    const content = document.createElement("span");
-    content.className = "msg-content block pr-8"; // Adiciona padding para o botão de cópia
-    content.textContent = text;
-    div.appendChild(content);
-
-    // Botão Copiar
-    const copyButton = document.createElement('button');
-    copyButton.className = 'copy-btn absolute top-1 right-1 p-1 rounded-full text-white/50 hover:text-white transition duration-150';
-    // Ajusta a cor do ícone de cópia dependendo do balão
-    if (type === 'bot') {
-        copyButton.className = 'copy-btn absolute top-1 right-1 p-1 rounded-full text-cws-text/50 hover:text-cws-text transition duration-150';
-    }
-    copyButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
-    copyButton.onclick = function() { copyMessage(this); };
-    div.appendChild(copyButton);
-
-    container.appendChild(div);
-    chat.appendChild(container);
-
-    chat.scrollTop = chat.scrollHeight;
-  }
-  
-  // Função para copiar o texto da mensagem
-  function copyMessage(buttonElement) {
-    // Pega o elemento span.msg-content que contém o texto
-    const messageContent = buttonElement.parentNode.querySelector('.msg-content');
-    if (!messageContent) return;
-
-    const textToCopy = messageContent.textContent;
-    
-    // Usa document.execCommand('copy') como fallback para ambientes restritos
-    if (document.execCommand) {
-        const textarea = document.createElement('textarea');
-        textarea.value = textToCopy;
-        textarea.style.position = 'fixed'; // Evita que apareça na tela
-        document.body.appendChild(textarea);
-        textarea.select();
-        try {
-            document.execCommand('copy');
-            showCopyNotification();
-        } catch (err) {
-            console.error('Erro ao copiar texto:', err);
-        }
-        document.body.removeChild(textarea);
-    } else {
-        // Fallback mais moderno se o execCommand falhar (embora menos provável em canvas)
-        navigator.clipboard.writeText(textToCopy).then(() => {
-            showCopyNotification();
-        }).catch(err => {
-            console.error('Erro ao copiar texto via Clipboard API:', err);
-        });
-    }
-  }
-
-  // Função para mostrar a notificação de cópia
-  function showCopyNotification() {
-      const notification = document.getElementById('copy-notification');
-      notification.style.opacity = 1;
-      setTimeout(() => {
-          notification.style.opacity = 0;
-      }, 2000);
-  }
-
-
-  // Função utilitária para fetch com backoff exponencial
-  async function fetchWithBackoff(url, options, retries = 3) {
-      for (let i = 0; i < retries; i++) {
-          try {
-              const response = await fetch(url, options);
-              if (!response.ok) {
-                  throw new Error(`HTTP error! Status: ${response.status}`);
-              }
-              return response;
-          } catch (error) {
-              if (i === retries - 1) {
-                  throw error; // Última tentativa falhou
-              }
-              // Atraso exponencial: 1s, 2s, 4s, ... + jitter
-              const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
-              await new Promise(resolve => setTimeout(resolve, delay));
-          }
-      }
-  }
-
-  // Função principal para enviar a mensagem
-  async function send() {
-    // Se estiver ouvindo, pare a gravação antes de enviar
-    if (isListening && recognition) {
-        recognition.stop();
-    }
-    
-    const input = document.getElementById("question");
-    const typing = document.getElementById("typing");
-    const button = document.getElementById("send-button");
-    const speechBtn = document.getElementById("speech-button");
-
-    const userText = input.value.trim();
-    if (!userText) return;
-
-    // 1. Exibir mensagem do usuário e desabilitar input
-    addMessage(userText, "user");
-    input.value = "";
-    input.disabled = true;
-    button.disabled = true;
-    speechBtn.disabled = true;
-    button.classList.add('opacity-50', 'cursor-not-allowed');
-    speechBtn.classList.add('opacity-50', 'cursor-not-allowed');
-
-    // 2. Mostrar "digitando..."
-    typing.style.display = "flex";
-
-    let botResponse = "Desculpe, não foi possível obter uma resposta no momento. Tente novamente mais tarde.";
-
-    try {
-        const payload = {
-            contents: [{ parts: [{ text: userText }] }],
-            // Instrução de sistema para guiar o modelo a responder em português
-            systemInstruction: {
-                parts: [{ text: "Você é um assistente de IA amigável e útil da CWS Platform, otimizado para responder a perguntas e fornecer ajuda em português (Brasil). Mantenha as respostas claras e concisas, focando em soluções e informações relevantes para a plataforma CWS." }]
-            },
+        recognition.onstart = function() {
+            isListening = true;
+            speechButton.classList.add('bg-cws-accent', 'recording', 'text-white');
+            speechButton.classList.remove('text-cws-text');
         };
 
-        const options = {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+        recognition.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            document.getElementById("question").value = transcript;
         };
 
-        const response = await fetchWithBackoff(API_URL, options);
-        const result = await response.json();
+        recognition.onend = function() {
+            isListening = false;
+            speechButton.classList.remove('bg-cws-accent', 'recording', 'text-white');
+            speechButton.classList.add('text-cws-text');
+        };
 
-        const candidate = result.candidates?.[0];
+        recognition.onerror = function(event) {
+            isListening = false;
+            speechButton.classList.remove('bg-cws-accent', 'recording', 'text-white');
+            speechButton.classList.add('text-cws-text');
+            console.error('Erro de reconhecimento de voz:', event.error);
+            if (event.error !== 'no-speech' && event.error !== 'aborted') {
+                document.getElementById("question").placeholder = "Erro no microfone. Tente digitar.";
+                setTimeout(() => {
+                    document.getElementById("question").placeholder = "Digite sua mensagem ou clique no microfone...";
+                }, 3000);
+            }
+        };
+    } else {
+        speechButton.classList.add('unsupported');
+    }
 
-        if (candidate && candidate.content?.parts?.[0]?.text) {
-            botResponse = candidate.content.parts[0].text;
+    function toggleSpeechRecognition() {
+        if (!recognition) return;
+
+        if (isListening) {
+            recognition.stop();
         } else {
-            console.error("Erro na estrutura da resposta da API:", result);
-            botResponse = "A resposta da IA está vazia ou malformada.";
+            document.getElementById("question").value = "";
+            recognition.start();
+            // onstart lida com a mudança de estado e classe
+        }
+    }
+
+    // Função para adicionar mensagem ao chat
+    function addMessage(text, type) {
+        const chat = document.getElementById("chat");
+
+        // Contêiner principal para a mensagem (necessário para o posicionamento do botão de cópia)
+        const container = document.createElement("div");
+        container.className = `msg-container ${type === 'user' ? 'ml-auto' : 'mr-auto'}`;
+
+        // Balão da Mensagem
+        const div = document.createElement("div");
+        let baseClasses = "p-3 rounded-xl leading-snug text-sm md:text-base shadow-md relative";
+
+        if (type === "user") {
+            div.className = `msg user ${baseClasses} bg-cws-accent text-white rounded-br-none`;
+        } else {
+            div.className = `msg bot ${baseClasses} bg-cws-secondary text-cws-text rounded-bl-none`;
         }
 
-    } catch (error) {
-        console.error("Erro durante a chamada da API Gemini:", error);
-    } finally {
-        // 3. Ocultar "digitando..." e reabilitar input
-        typing.style.display = "none";
-        input.disabled = false;
-        button.disabled = false;
-        speechBtn.disabled = false;
-        button.classList.remove('opacity-50', 'cursor-not-allowed');
-        speechBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-        input.focus(); // Retorna o foco para a caixa de texto
+        // Conteúdo da Mensagem (para pre-wrap)
+        const content = document.createElement("span");
+        content.className = "msg-content block pr-8"; // Adiciona padding para o botão de cópia
+        content.textContent = text;
+        div.appendChild(content);
 
-        // 4. Adicionar a resposta da IA
-        addMessage(botResponse, "bot");
+        // Botão Copiar
+        const copyButton = document.createElement('button');
+        copyButton.className = 'copy-btn absolute top-1 right-1 p-1 rounded-full text-white/50 hover:text-white transition duration-150';
+        // Ajusta a cor do ícone de cópia dependendo do balão
+        if (type === 'bot') {
+            copyButton.className = 'copy-btn absolute top-1 right-1 p-1 rounded-full text-cws-text/50 hover:text-cws-text transition duration-150';
+        }
+        copyButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
+        copyButton.onclick = function() { copyMessage(this); };
+        div.appendChild(copyButton);
+
+        container.appendChild(div);
+        chat.appendChild(container);
+
+        chat.scrollTop = chat.scrollHeight;
     }
-  }
-</script>
 
-</body>
-</html>
+    // Função para copiar o texto da mensagem
+    function copyMessage(buttonElement) {
+        // Pega o elemento span.msg-content que contém o texto
+        const messageContent = buttonElement.parentNode.querySelector('.msg-content');
+        if (!messageContent) return;
+
+        const textToCopy = messageContent.textContent;
+
+        // Usa document.execCommand('copy') como fallback para ambientes restritos
+        if (document.execCommand) {
+            const textarea = document.createElement('textarea');
+            textarea.value = textToCopy;
+            textarea.style.position = 'fixed'; // Evita que apareça na tela
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showCopyNotification();
+            } catch (err) {
+                console.error('Erro ao copiar texto:', err);
+            }
+            document.body.removeChild(textarea);
+        } else {
+            // Fallback mais moderno se o execCommand falhar (embora menos provável em canvas)
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                showCopyNotification();
+            }).catch(err => {
+                console.error('Erro ao copiar texto via Clipboard API:', err);
+            });
+        }
+    }
+
+    // Função para mostrar a notificação de cópia
+    function showCopyNotification() {
+        const notification = document.getElementById('copy-notification');
+        notification.style.opacity = 1;
+        setTimeout(() => {
+            notification.style.opacity = 0;
+        }, 2000);
+    }
+
+
+    // Função utilitária para fetch com backoff exponencial
+    async function fetchWithBackoff(url, options, retries = 3) {
+        for (let i = 0; i < retries; i++) {
+            try {
+                const response = await fetch(url, options);
+                
+                // Se o status não for 2xx (ex: 404, 500, 401), lança erro
+                if (!response.ok) {
+                    // Tenta ler o JSON do erro para depuração
+                    const errorDetails = await response.json().catch(() => ({ message: `Status: ${response.status}` }));
+                    throw new Error(`Worker Error: ${errorDetails.message || errorDetails.error || JSON.stringify(errorDetails)}`);
+                }
+                return response;
+            } catch (error) {
+                if (i === retries - 1) {
+                    throw error; // Última tentativa falhou
+                }
+                // Atraso exponencial: 1s, 2s, 4s, ... + jitter
+                const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+
+    // Função principal para enviar a mensagem
+    async function send() {
+        // Se estiver ouvindo, pare a gravação antes de enviar
+        if (isListening && recognition) {
+            recognition.stop();
+        }
+
+        const input = document.getElementById("question");
+        const typing = document.getElementById("typing");
+        const button = document.getElementById("send-button");
+        const speechBtn = document.getElementById("speech-button");
+
+        const userText = input.value.trim();
+        if (!userText) return;
+
+        // 1. Exibir mensagem do usuário e desabilitar input
+        addMessage(userText, "user");
+        input.value = "";
+        input.disabled = true;
+        button.disabled = true;
+        speechBtn.disabled = true;
+        button.classList.add('opacity-50', 'cursor-not-allowed');
+        speechBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+        // 2. Mostrar "digitando..."
+        typing.style.display = "flex";
+
+        let botResponse = "Desculpe, não foi possível obter uma resposta no momento. Tente novamente mais tarde.";
+
+        try {
+            // O Worker RAG espera um payload simples: { question: "..." }
+            const payload = {
+                question: userText
+            };
+
+            const options = {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    // Não é estritamente necessário, mas bom para garantir
+                    'Access-Control-Allow-Origin': '*' 
+                },
+                body: JSON.stringify(payload)
+            };
+
+            // Chama o seu Worker na Cloudflare
+            const response = await fetchWithBackoff(API_URL, options);
+            const result = await response.json();
+
+            // O Worker RAG retorna: { answer: "..." }
+            if (result && result.answer) {
+                botResponse = result.answer;
+            } else {
+                // Captura e exibe a mensagem de erro detalhada do Worker
+                console.error("Erro na resposta do Worker:", result);
+                botResponse = result.message || result.error || "A resposta do Worker está vazia ou malformada.";
+            }
+
+        } catch (error) {
+            console.error("Erro durante a chamada ao Worker:", error);
+            // Exibe o erro de rede/conexão
+            botResponse = `Erro de Conexão: ${error.message}. Verifique a URL do Worker.`;
+        } finally {
+            // 3. Ocultar "digitando..." e reabilitar input
+            typing.style.display = "none";
+            input.disabled = false;
+            button.disabled = false;
+            speechBtn.disabled = false;
+            button.classList.remove('opacity-50', 'cursor-not-allowed');
+            speechBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            input.focus(); // Retorna o foco para a caixa de texto
+
+            // 4. Adicionar a resposta da IA
+            addMessage(botResponse, "bot");
+        }
+    }
+</script>
