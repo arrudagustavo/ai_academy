@@ -1,10 +1,101 @@
-<script>
-    // --- Configuração da API do Worker ---
-    // ⚠️ SUBSTITUA ESTE VALOR PELA URL REAL DO SEU WORKER NA CLOUDFLARE ⚠️
-    const WORKER_URL = "https://ai-academy.gustavo-arruda.workers.dev"; // Ex: https://ai-academy.arrudagustavo.workers.dev
-    const API_URL = WORKER_URL; // O endpoint é o Worker
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Academy - Chat</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        /* CSS Essencial Mínimo (Animações e correção de layout) */
+        body { height: 100vh; height: -webkit-fill-available; }
+        html { height: -webkit-fill-available; }
+        
+        .msg-content { white-space: pre-wrap; }
+        .msg-container { position: relative; max-width: 90%; margin-bottom: 15px; }
 
-    // --- Web Speech API Variáveis ---
+        .loader { width: 12px; height: 12px; border-radius: 50%; background: #8b459d; animation: typing 1s infinite alternate; margin: 0 4px; }
+        .loader:nth-child(2) { animation-delay: 0.2s; }
+        .loader:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing { from { transform: translateY(0); opacity: 0.7; } to { transform: translateY(-4px); opacity: 1; } }
+        
+        @keyframes pulse-cws { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+        #speech-button.recording { animation: pulse-cws 1.5s infinite ease-in-out; }
+        #speech-button.unsupported { display: none; }
+        
+        /* Notificação de Cópia */
+        #copy-notification { position: fixed; bottom: 100px; right: 20px; padding: 10px 20px; background-color: #8b459d; color: white; border-radius: 8px; z-index: 1000; opacity: 0; transition: opacity 0.3s ease-in-out; }
+
+        /* Esconder/Mostrar ícone de envio para responsividade */
+        .send-text { display: none; }
+        .send-icon { display: block; }
+        @media (min-width: 640px) { .send-text { display: block; } .send-icon { display: none; } }
+    </style>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'cws-bg': '#141416', 'cws-text': '#f0f0f0', 'cws-accent': '#8b459d', 'cws-secondary': '#424242', 'cws-input-border': '#555555',
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'], }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="h-screen flex flex-col bg-cws-bg antialiased text-cws-text">
+
+    <!-- Cabeçalho com Título e Logo -->
+    <header class="bg-cws-bg p-4 flex items-center justify-between shadow-lg border-b border-cws-secondary px-6">
+        <span class="text-cws-text text-xl font-bold">AI Chat - Academy</span>
+        <img src="https://v.fastcdn.co/t/869bbf5c/a82c00e0/1760449425-64878728-159x52-logo-platform-cinza-.png" alt="CWS Platform Logo" class="h-8 sm:h-10 w-auto" />
+    </header>
+
+    <!-- Área de Mensagens -->
+    <div id="chat" class="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4 flex flex-col">
+        <!-- Mensagem de boas-vindas inicial -->
+        <div class="msg-container mr-auto">
+            <div class="msg bot p-3 rounded-xl leading-snug text-sm md:text-base shadow-md bg-cws-secondary text-cws-text rounded-bl-none max-w-full">
+                <span class="msg-content block pr-8">Olá! Eu sou o seu assistente de IA da CWS Platform, pronto para responder às suas perguntas. Como posso ajudar você hoje?</span>
+                <button onclick="copyMessage(this)" class="copy-btn absolute top-1 right-1 p-1 rounded-full text-cws-text/50 hover:text-cws-text transition duration-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Indicator (Typing...) -->
+    <div id="typing" class="p-3 pl-6 text-sm text-cws-text hidden items-center">
+        <span class="mr-2">CWS AI está digitando</span>
+        <div class="flex items-center"> <div class="loader"></div> <div class="loader"></div> <div class="loader"></div> </div>
+    </div>
+
+    <!-- Notificação de Cópia -->
+    <div id="copy-notification" style="opacity: 0;">Texto copiado!</div>
+
+    <!-- Área de Input (incluindo o botão de microfone) -->
+    <div id="input-area" class="flex p-4 bg-cws-bg border-t border-cws-secondary shadow-xl items-center">
+        
+        <!-- Botão Microfone -->
+        <button onclick="toggleSpeechRecognition()" id="speech-button" class="p-2 sm:p-3 mr-2 sm:mr-3 rounded-full text-cws-text transition duration-150 hover:bg-cws-accent/30 focus:outline-none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mic sm:w-6 sm:h-6">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>
+            </svg>
+        </button>
+        
+        <input id="question" placeholder="Digite sua mensagem ou clique no microfone..." class="flex-1 p-3 text-base border border-cws-input-border rounded-lg focus:outline-none focus:ring-2 focus:ring-cws-accent bg-cws-secondary text-cws-text placeholder-gray-400 transition duration-150" onkeydown="if(event.key === 'Enter') send()" />
+        
+        <button onclick="send()" id="send-button" class="ml-2 sm:ml-3 px-3 sm:px-5 py-2 sm:py-3 text-base font-semibold border-none bg-cws-accent text-white rounded-lg cursor-pointer transition duration-150 hover:bg-purple-700 active:bg-purple-800 shadow-md flex items-center justify-center">
+            <span class="send-text">Enviar</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send send-icon sm:w-6 sm:h-6"><path d="m22 2-7 20-4-9-9-4 20-7Z"/><path d="M15 7l-6 6"/></svg>
+        </button>
+    </div>
+
+<script>
+    const WORKER_URL = "https://ai-academy.gustavo-arruda.workers.dev/";
     let recognition = null;
     let isListening = false;
     const speechButton = document.getElementById("speech-button");
@@ -15,60 +106,92 @@
         recognition.interimResults = false;
         recognition.lang = 'pt-BR';
 
-        recognition.onstart = function() {
+        recognition.onstart = () => {
             isListening = true;
             speechButton.classList.add('bg-cws-accent', 'recording', 'text-white');
             speechButton.classList.remove('text-cws-text');
         };
-
-        recognition.onresult = function(event) {
-            const transcript = event.results[0][0].transcript;
-            document.getElementById("question").value = transcript;
-        };
-
-        recognition.onend = function() {
+        recognition.onresult = (event) => { document.getElementById("question").value = event.results[0][0].transcript; };
+        recognition.onend = () => {
             isListening = false;
             speechButton.classList.remove('bg-cws-accent', 'recording', 'text-white');
             speechButton.classList.add('text-cws-text');
+            if (document.getElementById("question").value.trim()) send();
         };
-
-        recognition.onerror = function(event) {
+        recognition.onerror = (event) => {
             isListening = false;
             speechButton.classList.remove('bg-cws-accent', 'recording', 'text-white');
             speechButton.classList.add('text-cws-text');
             console.error('Erro de reconhecimento de voz:', event.error);
-            if (event.error !== 'no-speech' && event.error !== 'aborted') {
-                document.getElementById("question").placeholder = "Erro no microfone. Tente digitar.";
-                setTimeout(() => {
-                    document.getElementById("question").placeholder = "Digite sua mensagem ou clique no microfone...";
-                }, 3000);
-            }
         };
-    } else {
-        speechButton.classList.add('unsupported');
-    }
+    } else { speechButton.classList.add('unsupported'); }
 
     function toggleSpeechRecognition() {
         if (!recognition) return;
-
-        if (isListening) {
-            recognition.stop();
-        } else {
-            document.getElementById("question").value = "";
-            recognition.start();
-            // onstart lida com a mudança de estado e classe
+        isListening ? recognition.stop() : (document.getElementById("question").value = "", recognition.start());
+    }
+    
+    async function fetchWithBackoff(url, options, retries = 3) {
+        for (let i = 0; i < retries; i++) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    const errorDetails = await response.json().catch(() => ({ message: `Status: ${response.status}` }));
+                    throw new Error(`Worker Error: ${errorDetails.message || errorDetails.error || JSON.stringify(errorDetails)}`);
+                }
+                return response;
+            } catch (error) {
+                if (i === retries - 1) throw error;
+                const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
         }
     }
 
-    // Função para adicionar mensagem ao chat
+    async function send() {
+        const input = document.getElementById("question"), typing = document.getElementById("typing"),
+              button = document.getElementById("send-button"), speechBtn = document.getElementById("speech-button");
+        
+        const text = input.value.trim();
+        if (!text) return;
+
+        // 1. Exibe mensagem do usuário e desabilita input
+        addMessage(text, "user");
+        input.value = "";
+        input.disabled = button.disabled = speechBtn.disabled = true;
+        button.classList.add('opacity-50', 'cursor-not-allowed');
+        speechBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+        typing.style.display = "flex";
+        let botResponse = "Erro ao responder.";
+
+        try {
+            const response = await fetchWithBackoff(WORKER_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+                body: JSON.stringify({ question: text })
+            });
+            const data = await response.json();
+            botResponse = data.answer || "Erro ao responder.";
+        } catch (error) {
+            console.error("Erro na comunicação com o Worker:", error);
+            botResponse = `Erro de Conexão: ${error.message}. Verifique se o Worker está ativo.`;
+        } finally {
+            // 3. Finaliza
+            typing.style.display = "none";
+            input.disabled = button.disabled = speechBtn.disabled = false;
+            button.classList.remove('opacity-50', 'cursor-not-allowed');
+            speechBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            input.focus(); 
+            addMessage(botResponse, "bot");
+        }
+    }
+
     function addMessage(text, type) {
         const chat = document.getElementById("chat");
-
-        // Contêiner principal para a mensagem (necessário para o posicionamento do botão de cópia)
         const container = document.createElement("div");
         container.className = `msg-container ${type === 'user' ? 'ml-auto' : 'mr-auto'}`;
 
-        // Balão da Mensagem
         const div = document.createElement("div");
         let baseClasses = "p-3 rounded-xl leading-snug text-sm md:text-base shadow-md relative";
 
@@ -78,169 +201,50 @@
             div.className = `msg bot ${baseClasses} bg-cws-secondary text-cws-text rounded-bl-none`;
         }
 
-        // Conteúdo da Mensagem (para pre-wrap)
         const content = document.createElement("span");
-        content.className = "msg-content block pr-8"; // Adiciona padding para o botão de cópia
+        content.className = "msg-content block pr-8"; 
         content.textContent = text;
         div.appendChild(content);
 
-        // Botão Copiar
         const copyButton = document.createElement('button');
-        copyButton.className = 'copy-btn absolute top-1 right-1 p-1 rounded-full text-white/50 hover:text-white transition duration-150';
-        // Ajusta a cor do ícone de cópia dependendo do balão
-        if (type === 'bot') {
-            copyButton.className = 'copy-btn absolute top-1 right-1 p-1 rounded-full text-cws-text/50 hover:text-cws-text transition duration-150';
-        }
+        const copyIconClass = type === 'bot' ? 'text-cws-text/50 hover:text-cws-text' : 'text-white/50 hover:text-white';
+        copyButton.className = `copy-btn absolute top-1 right-1 p-1 rounded-full transition duration-150 ${copyIconClass}`;
         copyButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
         copyButton.onclick = function() { copyMessage(this); };
         div.appendChild(copyButton);
 
         container.appendChild(div);
         chat.appendChild(container);
-
         chat.scrollTop = chat.scrollHeight;
     }
-
-    // Função para copiar o texto da mensagem
+    
     function copyMessage(buttonElement) {
-        // Pega o elemento span.msg-content que contém o texto
         const messageContent = buttonElement.parentNode.querySelector('.msg-content');
         if (!messageContent) return;
-
         const textToCopy = messageContent.textContent;
-
-        // Usa document.execCommand('copy') como fallback para ambientes restritos
+        
         if (document.execCommand) {
             const textarea = document.createElement('textarea');
             textarea.value = textToCopy;
-            textarea.style.position = 'fixed'; // Evita que apareça na tela
+            textarea.style.position = 'fixed'; 
             document.body.appendChild(textarea);
             textarea.select();
             try {
                 document.execCommand('copy');
                 showCopyNotification();
-            } catch (err) {
-                console.error('Erro ao copiar texto:', err);
-            }
+            } catch (err) { console.error('Erro ao copiar texto:', err); }
             document.body.removeChild(textarea);
         } else {
-            // Fallback mais moderno se o execCommand falhar (embora menos provável em canvas)
-            navigator.clipboard.writeText(textToCopy).then(() => {
-                showCopyNotification();
-            }).catch(err => {
-                console.error('Erro ao copiar texto via Clipboard API:', err);
-            });
+            navigator.clipboard.writeText(textToCopy).then(() => { showCopyNotification(); }).catch(err => { console.error('Erro ao copiar texto via Clipboard API:', err); });
         }
     }
 
-    // Função para mostrar a notificação de cópia
     function showCopyNotification() {
         const notification = document.getElementById('copy-notification');
         notification.style.opacity = 1;
-        setTimeout(() => {
-            notification.style.opacity = 0;
-        }, 2000);
-    }
-
-
-    // Função utilitária para fetch com backoff exponencial
-    async function fetchWithBackoff(url, options, retries = 3) {
-        for (let i = 0; i < retries; i++) {
-            try {
-                const response = await fetch(url, options);
-                
-                // Se o status não for 2xx (ex: 404, 500, 401), lança erro
-                if (!response.ok) {
-                    // Tenta ler o JSON do erro para depuração
-                    const errorDetails = await response.json().catch(() => ({ message: `Status: ${response.status}` }));
-                    throw new Error(`Worker Error: ${errorDetails.message || errorDetails.error || JSON.stringify(errorDetails)}`);
-                }
-                return response;
-            } catch (error) {
-                if (i === retries - 1) {
-                    throw error; // Última tentativa falhou
-                }
-                // Atraso exponencial: 1s, 2s, 4s, ... + jitter
-                const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        }
-    }
-
-    // Função principal para enviar a mensagem
-    async function send() {
-        // Se estiver ouvindo, pare a gravação antes de enviar
-        if (isListening && recognition) {
-            recognition.stop();
-        }
-
-        const input = document.getElementById("question");
-        const typing = document.getElementById("typing");
-        const button = document.getElementById("send-button");
-        const speechBtn = document.getElementById("speech-button");
-
-        const userText = input.value.trim();
-        if (!userText) return;
-
-        // 1. Exibir mensagem do usuário e desabilitar input
-        addMessage(userText, "user");
-        input.value = "";
-        input.disabled = true;
-        button.disabled = true;
-        speechBtn.disabled = true;
-        button.classList.add('opacity-50', 'cursor-not-allowed');
-        speechBtn.classList.add('opacity-50', 'cursor-not-allowed');
-
-        // 2. Mostrar "digitando..."
-        typing.style.display = "flex";
-
-        let botResponse = "Desculpe, não foi possível obter uma resposta no momento. Tente novamente mais tarde.";
-
-        try {
-            // O Worker RAG espera um payload simples: { question: "..." }
-            const payload = {
-                question: userText
-            };
-
-            const options = {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    // Não é estritamente necessário, mas bom para garantir
-                    'Access-Control-Allow-Origin': '*' 
-                },
-                body: JSON.stringify(payload)
-            };
-
-            // Chama o seu Worker na Cloudflare
-            const response = await fetchWithBackoff(API_URL, options);
-            const result = await response.json();
-
-            // O Worker RAG retorna: { answer: "..." }
-            if (result && result.answer) {
-                botResponse = result.answer;
-            } else {
-                // Captura e exibe a mensagem de erro detalhada do Worker
-                console.error("Erro na resposta do Worker:", result);
-                botResponse = result.message || result.error || "A resposta do Worker está vazia ou malformada.";
-            }
-
-        } catch (error) {
-            console.error("Erro durante a chamada ao Worker:", error);
-            // Exibe o erro de rede/conexão
-            botResponse = `Erro de Conexão: ${error.message}. Verifique a URL do Worker.`;
-        } finally {
-            // 3. Ocultar "digitando..." e reabilitar input
-            typing.style.display = "none";
-            input.disabled = false;
-            button.disabled = false;
-            speechBtn.disabled = false;
-            button.classList.remove('opacity-50', 'cursor-not-allowed');
-            speechBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-            input.focus(); // Retorna o foco para a caixa de texto
-
-            // 4. Adicionar a resposta da IA
-            addMessage(botResponse, "bot");
-        }
+        setTimeout(() => { notification.style.opacity = 0; }, 2000);
     }
 </script>
+
+</body>
+</html>
