@@ -103,6 +103,15 @@
             display: none;
         }
     }
+    /* Estilo específico para o Textarea para ter altura inicial fixa */
+    #question {
+        resize: none; /* Impede que o usuário redimensione */
+        min-height: 48px; /* Altura mínima similar ao input padrão */
+        height: 48px; /* Altura inicial */
+        overflow-y: auto;
+        line-height: 1.5;
+    }
+
   </style>
   <script>
     tailwind.config = {
@@ -168,12 +177,13 @@
       </svg>
     </button>
     
-    <input
+    <!-- Textarea para permitir quebras de linha --><textarea
       id="question"
       placeholder="Digite sua mensagem ou clique no microfone..."
       class="flex-1 p-3 text-base border border-cws-input-border rounded-lg focus:outline-none focus:ring-2 focus:ring-cws-accent-purple bg-white text-cws-text-dark placeholder-gray-400 transition duration-150"
-      onkeydown="if(event.key === 'Enter') send()"
-    />
+      onkeydown="handleKeyDown(event)"
+    ></textarea>
+    
     <button
       onclick="send()"
       id="send-button"
@@ -188,6 +198,36 @@
   // --- Configuração da API Worker (para o RAG) ---
   const WORKER_URL_BASE = "https://ai-academy.gustavo-arruda.workers.dev";
   const WORKER_CHAT_ENDPOINT = WORKER_URL_BASE + "/chat"; // Rota /chat conforme o Worker
+  const questionElement = document.getElementById("question");
+
+  // Novo manipulador de tecla para permitir Shift+Enter
+  function handleKeyDown(event) {
+    // Se a tecla pressionada for ENTER (key code 13 ou key 'Enter')
+    if (event.key === 'Enter') {
+        // Se SHIFT ou CTRL NÃO estiverem pressionados, envie a mensagem
+        if (!event.shiftKey && !event.ctrlKey) {
+            event.preventDefault(); // Impede a quebra de linha padrão do textarea
+            send();
+        } 
+        // Se SHIFT ou CTRL estiverem pressionados, o evento não é impedido, 
+        // e o navegador insere a quebra de linha normalmente no textarea.
+    }
+    // Chama a função de ajuste de altura para expandir o textarea conforme o conteúdo
+    adjustTextareaHeight();
+  }
+
+  // Função para ajustar a altura do textarea
+  function adjustTextareaHeight() {
+    // Reseta a altura para calcular o scrollHeight
+    questionElement.style.height = 'auto'; 
+    // Define a altura para o scrollHeight, limitado a um máximo visual razoável
+    const maxHeight = window.innerHeight * 0.3; // 30% da tela para não cobrir o chat
+    questionElement.style.height = Math.min(questionElement.scrollHeight, maxHeight) + 'px';
+  }
+  
+  // Adiciona listener para garantir que o textarea ajuste a altura no carregamento (se houver texto)
+  document.addEventListener('DOMContentLoaded', adjustTextareaHeight);
+  questionElement.addEventListener('input', adjustTextareaHeight);
 
   // --- Web Speech API Variáveis ---
   let recognition = null;
@@ -209,7 +249,8 @@
 
       recognition.onresult = function(event) {
           const transcript = event.results[0][0].transcript;
-          document.getElementById("question").value = transcript;
+          questionElement.value = transcript;
+          adjustTextareaHeight(); // Ajusta a altura após a transcrição
       };
 
       recognition.onend = function() {
@@ -226,9 +267,9 @@
           speechButton.classList.add('text-cws-text-dark');
           console.error('Erro de reconhecimento de voz:', event.error);
           if (event.error !== 'no-speech' && event.error !== 'aborted') {
-            document.getElementById("question").placeholder = "Erro no microfone. Tente digitar.";
+            questionElement.placeholder = "Erro no microfone. Tente digitar.";
             setTimeout(() => {
-                document.getElementById("question").placeholder = "Digite sua mensagem ou clique no microfone...";
+                questionElement.placeholder = "Digite sua mensagem ou clique no microfone...";
             }, 3000);
           }
       };
@@ -242,7 +283,8 @@
       if (isListening) {
           recognition.stop();
       } else {
-          document.getElementById("question").value = "";
+          questionElement.value = "";
+          adjustTextareaHeight(); // Reseta a altura
           recognition.start();
       }
   }
@@ -366,6 +408,9 @@
     // 1. Exibir mensagem do usuário e desabilitar input
     addMessage(userText, "user");
     input.value = "";
+    // Reseta o tamanho do textarea
+    adjustTextareaHeight();
+
     input.disabled = true;
     button.disabled = true;
     speechBtn.disabled = true;
